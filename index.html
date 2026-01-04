@@ -8,13 +8,13 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@400;600;800&display=swap" rel="stylesheet">
     <style>
-        /* Apply Fontatica globally to all elements to ensure consistency */
+        /* Apply Fontatica globally with a robust fallback chain */
         * {
             font-family: 'Fontatica', 'Lexend', sans-serif;
         }
         
         body {
-            background-color: #fefce8;
+            background-color: #fefce8; /* This is the beige/yellow color you saw */
             margin: 0;
             padding: 0;
         }
@@ -27,6 +27,11 @@
         /* Smooth scroll for better accessibility navigation */
         html {
             scroll-behavior: smooth;
+        }
+
+        /* Prevent text from being invisible while fonts load */
+        .font-loaded body {
+            opacity: 1;
         }
     </style>
 <script type="importmap">
@@ -43,5 +48,7 @@
 </head>
 <body class="bg-yellow-50 text-slate-900">
     <div id="root"></div>
+    <!-- THIS IS THE CRITICAL LINE: It tells the browser to start your app -->
+    <script type="module" src="./index.tsx"></script>
 </body>
 </html>
