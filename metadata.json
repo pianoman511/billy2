@@ -1,0 +1,8 @@
+{
+  "name": "Assistme: Empowering Accessibility",
+  "description": "A high-accessibility companion app featuring object recognition, OCR, real-time speech transcription, text-to-speech, and a medicine planner, all designed with a high-contrast yellow theme and large controls.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
