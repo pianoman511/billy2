@@ -13,14 +13,14 @@ import {
   Minimize
 } from 'lucide-react';
 import { GoogleGenAI, Modality } from "@google/genai";
-import { AppFeature, Medication } from './types';
-import ObjectRecognition from './features/ObjectRecognition';
-import SpeechToText from './features/SpeechToText';
-import TextToSpeech from './features/TextToSpeech';
-import OCRScanner from './features/OCRScanner';
-import MedicinePlanner from './features/MedicinePlanner';
-import AccessibleButton from './components/AccessibleButton';
-import { decode, decodeAudioData } from './services/audio';
+import { AppFeature, Medication } from './types.ts';
+import ObjectRecognition from './features/ObjectRecognition.tsx';
+import SpeechToText from './features/SpeechToText.tsx';
+import TextToSpeech from './features/TextToSpeech.tsx';
+import OCRScanner from './features/OCRScanner.tsx';
+import MedicinePlanner from './features/MedicinePlanner.tsx';
+import AccessibleButton from './components/AccessibleButton.tsx';
+import { decode, decodeAudioData } from './services/audio.ts';
 
 const App: React.FC = () => {
   const [activeFeature, setActiveFeature] = useState<AppFeature>(AppFeature.OBJECT_RECOGNITION);
@@ -43,7 +43,7 @@ const App: React.FC = () => {
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(err => {
-        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+        console.error(`Fullscreen error: ${err.message}`);
       });
     } else {
       document.exitFullscreen();
@@ -51,9 +51,7 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
-    const onFullscreenChange = () => {
-      setIsFullscreen(!!document.fullscreenElement);
-    };
+    const onFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
     document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
   }, []);
@@ -64,7 +62,7 @@ const App: React.FC = () => {
       alarmIntervalRef.current = null;
     }
     if (alarmAudioCtxRef.current) {
-      alarmAudioCtxRef.current.close();
+      alarmAudioCtxRef.current.close().catch(() => {});
       alarmAudioCtxRef.current = null;
     }
   };
@@ -93,8 +91,8 @@ const App: React.FC = () => {
 
   const speakAlarmMessage = async (med: Medication) => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Medication Reminder. Time for ${med.name}. Dosage: ${med.dosage}.`;
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const prompt = `Reminder for ${med.patientName}. It is time for ${med.name}. Dosage: ${med.dosage}.`;
       
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
@@ -125,12 +123,10 @@ const App: React.FC = () => {
     const monitorInterval = setInterval(() => {
       const now = new Date();
       const currentHHmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      
       const saved = localStorage.getItem('assistme_meds');
       if (saved) {
         const meds: Medication[] = JSON.parse(saved);
         const dueMed = meds.find(m => m.time === currentHHmm);
-        
         if (dueMed) {
           const triggerId = `${dueMed.id}-${currentHHmm}`;
           if (!triggeredMedsRef.current.has(triggerId)) {
@@ -142,7 +138,6 @@ const App: React.FC = () => {
         }
       }
     }, 10000);
-
     return () => {
       clearInterval(monitorInterval);
       stopAlarmSound();
@@ -168,9 +163,7 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col font-roboto">
       <header className="px-6 py-5 flex justify-between items-center bg-white shadow-sm sticky top-0 z-50">
-        <div className="flex items-center gap-2">
-           <h1 className="text-xl font-black tracking-tight text-stone-900">assistme</h1>
-        </div>
+        <h1 className="text-xl font-black tracking-tight text-stone-900">assistme</h1>
         <button 
           onClick={() => setIsMenuOpen(!isMenuOpen)}
           className="p-2 rounded-full hover:bg-stone-50 transition-colors"
@@ -185,33 +178,27 @@ const App: React.FC = () => {
       </main>
 
       {activeAlarm && (
-        <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
-          <div className="w-full max-w-sm flex flex-col gap-6 scale-up animate-in zoom-in duration-300">
+        <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
+          <div className="w-full max-w-sm flex flex-col gap-6 animate-in zoom-in">
             <div className="flex justify-center">
               <div className="bg-amber-100 text-amber-600 p-8 rounded-full shadow-inner">
                 <AlarmClock size={64} className="animate-pulse" />
               </div>
             </div>
-            
             <div className="space-y-1">
-              <h2 className="text-3xl font-black text-stone-900 tracking-tight">Medicine Reminder</h2>
-              <p className="text-lg text-stone-400 font-medium">It's scheduled for {activeAlarm.time}</p>
+              <h2 className="text-3xl font-black text-stone-900 tracking-tight">Medicine Time</h2>
+              <p className="text-lg text-stone-400 font-medium">It's {activeAlarm.time}</p>
             </div>
-
-            <div className="bg-white p-6 rounded-2xl shadow-sm space-y-2">
+            <div className="bg-stone-50 p-6 rounded-2xl shadow-sm">
               <p className="text-2xl font-bold text-stone-900">{activeAlarm.name}</p>
               <p className="text-amber-600 font-bold uppercase tracking-wider text-sm">{activeAlarm.dosage}</p>
             </div>
-
             <div className="flex flex-col gap-3 pt-4">
               <AccessibleButton onClick={handleAlarmAcknowledge} variant="primary" className="py-6 text-xl">
                 I've taken it
               </AccessibleButton>
-              <button 
-                onClick={() => speakAlarmMessage(activeAlarm)}
-                className="text-stone-400 font-bold hover:text-stone-600 flex items-center justify-center gap-2 py-2 transition-colors"
-              >
-                <Volume2 size={20} /> Read instructions again
+              <button onClick={() => speakAlarmMessage(activeAlarm)} className="text-stone-400 font-bold hover:text-stone-600 flex items-center justify-center gap-2 py-2">
+                <Volume2 size={20} /> Hear again
               </button>
             </div>
           </div>
@@ -227,9 +214,7 @@ const App: React.FC = () => {
               setIsMenuOpen(false);
             }}
             className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all ${
-              activeFeature === f.id 
-                ? 'text-amber-600' 
-                : 'text-stone-400 hover:text-stone-600'
+              activeFeature === f.id ? 'text-amber-600' : 'text-stone-400 hover:text-stone-600'
             }`}
           >
             {f.icon}
@@ -241,39 +226,27 @@ const App: React.FC = () => {
 
       {isMenuOpen && (
         <div className="fixed inset-0 z-[60] bg-stone-900/10 backdrop-blur-sm animate-in fade-in" onClick={() => setIsMenuOpen(false)}>
-          <div className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-2xl flex flex-col gap-4 animate-in slide-in-from-right duration-300" onClick={e => e.stopPropagation()}>
+          <div className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-2xl flex flex-col animate-in slide-in-from-right" onClick={e => e.stopPropagation()}>
             <div className="p-6 border-b border-stone-50 flex justify-between items-center">
               <h2 className="text-xs font-black text-stone-400 uppercase tracking-widest">Navigation</h2>
-              <button onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-stone-50 rounded-full transition-colors">
-                <X size={20} />
-              </button>
+              <button onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-stone-50 rounded-full"><X size={20} /></button>
             </div>
-            <div className="px-3 py-2 space-y-1">
+            <div className="px-3 py-4 space-y-1">
               {features.map((f) => (
                 <button
                   key={f.id}
-                  onClick={() => {
-                    setActiveFeature(f.id);
-                    setIsMenuOpen(false);
-                  }}
+                  onClick={() => { setActiveFeature(f.id); setIsMenuOpen(false); }}
                   className={`w-full flex items-center gap-4 p-4 rounded-xl text-base font-bold transition-all ${
-                    activeFeature === f.id 
-                      ? 'bg-amber-50 text-amber-700' 
-                      : 'bg-white text-stone-600 hover:bg-stone-50'
+                    activeFeature === f.id ? 'bg-amber-50 text-amber-700' : 'bg-white text-stone-600 hover:bg-stone-50'
                   }`}
                 >
-                  {f.icon}
-                  {f.label}
+                  {f.icon} {f.label}
                 </button>
               ))}
-              
               <div className="pt-4 border-t border-stone-50 mt-4">
                 <button
-                  onClick={() => {
-                    toggleFullscreen();
-                    setIsMenuOpen(false);
-                  }}
-                  className="w-full flex items-center gap-4 p-4 rounded-xl text-base font-bold transition-all bg-white text-stone-600 hover:bg-stone-50"
+                  onClick={() => { toggleFullscreen(); setIsMenuOpen(false); }}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl text-base font-bold bg-white text-stone-600 hover:bg-stone-50"
                 >
                   {isFullscreen ? <Minimize size={22} /> : <Maximize size={22} />}
                   {isFullscreen ? 'Exit Full Screen' : 'Go Full Screen'}
@@ -281,7 +254,7 @@ const App: React.FC = () => {
               </div>
             </div>
             <div className="mt-auto p-8 border-t border-stone-50">
-               <p className="text-[10px] font-bold text-stone-300 uppercase tracking-widest text-center">v1.5 Minimal</p>
+               <p className="text-[10px] font-bold text-stone-300 uppercase tracking-widest text-center">v2.0 Minimal</p>
             </div>
           </div>
         </div>

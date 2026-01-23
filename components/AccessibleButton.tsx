@@ -1,4 +1,3 @@
-
 import React from 'react';
 
 interface AccessibleButtonProps {
@@ -16,20 +15,20 @@ const AccessibleButton: React.FC<AccessibleButtonProps> = ({
   className = '',
   disabled = false
 }) => {
-  const baseStyles = "px-6 py-5 rounded-2xl font-extrabold text-xl transition-all transform active:scale-95 flex items-center justify-center gap-3 shadow-lg border-4";
+  const baseStyles = "px-6 py-4 rounded-xl font-bold text-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3 shadow-sm";
   
   const variants = {
-    primary: "bg-yellow-400 border-yellow-500 text-black hover:bg-yellow-300",
-    secondary: "bg-white border-yellow-400 text-black hover:bg-yellow-50",
-    danger: "bg-red-500 border-red-700 text-white hover:bg-red-400",
-    success: "bg-green-500 border-green-700 text-white hover:bg-green-400",
+    primary: "bg-amber-400 text-stone-900 hover:bg-amber-300",
+    secondary: "bg-white text-stone-700 hover:bg-stone-50 border border-stone-100",
+    danger: "bg-rose-500 text-white hover:bg-rose-600",
+    success: "bg-emerald-600 text-white hover:bg-emerald-700",
   };
 
   return (
     <button 
       onClick={onClick} 
       disabled={disabled}
-      className={`${baseStyles} ${variants[variant]} ${disabled ? 'opacity-50 grayscale cursor-not-allowed' : ''} ${className}`}
+      className={`${baseStyles} ${variants[variant]} ${disabled ? 'opacity-30 grayscale cursor-not-allowed' : ''} ${className}`}
     >
       {children}
     </button>
