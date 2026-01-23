@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Eye, 
@@ -9,7 +8,9 @@ import {
   Menu,
   X,
   AlarmClock,
-  Volume2
+  Volume2,
+  Maximize,
+  Minimize
 } from 'lucide-react';
 import { GoogleGenAI, Modality } from "@google/genai";
 import { AppFeature, Medication } from './types';
@@ -25,18 +26,37 @@ const App: React.FC = () => {
   const [activeFeature, setActiveFeature] = useState<AppFeature>(AppFeature.OBJECT_RECOGNITION);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeAlarm, setActiveAlarm] = useState<Medication | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const triggeredMedsRef = useRef<Set<string>>(new Set());
   
   const alarmAudioCtxRef = useRef<AudioContext | null>(null);
   const alarmIntervalRef = useRef<number | null>(null);
 
   const features = [
-    { id: AppFeature.OBJECT_RECOGNITION, label: 'Identify Objects', icon: <Eye size={24} /> },
-    { id: AppFeature.SPEECH_TO_TEXT, label: 'Voice Captions', icon: <Mic2 size={24} /> },
-    { id: AppFeature.TEXT_TO_SPEECH, label: 'Talk for Me', icon: <MessageSquare size={24} /> },
-    { id: AppFeature.OCR_SCANNER, label: 'Read Text', icon: <ScanLine size={24} /> },
-    { id: AppFeature.MEDICINE_PLANNER, label: 'Medicine Help', icon: <Pill size={24} /> },
+    { id: AppFeature.OBJECT_RECOGNITION, label: 'Vision', icon: <Eye size={22} /> },
+    { id: AppFeature.SPEECH_TO_TEXT, label: 'Captions', icon: <Mic2 size={22} /> },
+    { id: AppFeature.TEXT_TO_SPEECH, label: 'Voice', icon: <MessageSquare size={22} /> },
+    { id: AppFeature.OCR_SCANNER, label: 'Read', icon: <ScanLine size={22} /> },
+    { id: AppFeature.MEDICINE_PLANNER, label: 'Meds', icon: <Pill size={22} /> },
   ];
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable full-screen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+  }, []);
 
   const stopAlarmSound = () => {
     if (alarmIntervalRef.current) {
@@ -57,28 +77,24 @@ const App: React.FC = () => {
     const playBeep = () => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(880, ctx.currentTime);
-      
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
       gain.gain.setValueAtTime(0, ctx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
-      
+      gain.gain.linearRampToValueAtTime(0.1, ctx.currentTime + 0.1);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
       osc.connect(gain);
       gain.connect(ctx.destination);
-      
       osc.start();
-      osc.stop(ctx.currentTime + 0.3);
+      osc.stop(ctx.currentTime + 0.5);
     };
 
-    alarmIntervalRef.current = window.setInterval(playBeep, 800);
+    alarmIntervalRef.current = window.setInterval(playBeep, 1000);
   };
 
   const speakAlarmMessage = async (med: Medication) => {
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Attention! It is time for ${med.patientName} to take their medicine: ${med.name}. The dosage is ${med.dosage}. Please take it now.`;
+      const prompt = `Medication Reminder. Time for ${med.name}. Dosage: ${med.dosage}.`;
       
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
@@ -125,7 +141,7 @@ const App: React.FC = () => {
           }
         }
       }
-    }, 5000);
+    }, 10000);
 
     return () => {
       clearInterval(monitorInterval);
@@ -150,63 +166,59 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-yellow-50 flex flex-col">
-      <header className="bg-yellow-400 p-4 flex justify-between items-center border-b-4 border-yellow-500 sticky top-0 z-50 shadow-md">
-        <h1 className="text-xl font-black text-black tracking-tighter uppercase italic">Assistme</h1>
+    <div className="min-h-screen bg-stone-50 flex flex-col font-roboto">
+      <header className="px-6 py-5 flex justify-between items-center bg-white shadow-sm sticky top-0 z-50">
+        <div className="flex items-center gap-2">
+           <h1 className="text-xl font-black tracking-tight text-stone-900">assistme</h1>
+        </div>
         <button 
           onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className="p-2 rounded-xl bg-white border-2 border-black active:scale-95 transition-transform shadow-md"
+          className="p-2 rounded-full hover:bg-stone-50 transition-colors"
           aria-label="Menu"
         >
           {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
         </button>
       </header>
 
-      <main className="flex-1 max-w-4xl mx-auto w-full p-4 mb-24">
+      <main className="flex-1 max-w-2xl mx-auto w-full p-4 md:p-8 mb-28">
         {renderFeature()}
       </main>
 
       {activeAlarm && (
-        <div className="fixed inset-0 z-[100] bg-yellow-400 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-300">
-          <div className="bg-white p-12 rounded-[3rem] border-[10px] border-black shadow-[15px_15px_0_0_rgba(0,0,0,1)] w-full max-w-2xl flex flex-col gap-8 animate-bounce-slow">
+        <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-300">
+          <div className="w-full max-w-sm flex flex-col gap-6 scale-up animate-in zoom-in duration-300">
             <div className="flex justify-center">
-              <div className="bg-red-500 text-white p-6 rounded-full animate-pulse shadow-lg">
-                <AlarmClock size={80} className="animate-wiggle" />
+              <div className="bg-amber-100 text-amber-600 p-8 rounded-full shadow-inner">
+                <AlarmClock size={64} className="animate-pulse" />
               </div>
             </div>
             
-            <div className="flex flex-col gap-2">
-              <h2 className="text-5xl font-black uppercase tracking-tighter italic text-red-600">Time for Medicine!</h2>
-              <p className="text-3xl font-bold text-slate-500 italic">{activeAlarm.time}</p>
+            <div className="space-y-1">
+              <h2 className="text-3xl font-black text-stone-900 tracking-tight">Medicine Reminder</h2>
+              <p className="text-lg text-stone-400 font-medium">It's scheduled for {activeAlarm.time}</p>
             </div>
 
-            <div className="bg-yellow-100 p-8 rounded-3xl border-4 border-yellow-300">
-              <p className="text-4xl font-black text-slate-900 uppercase mb-2">{activeAlarm.name}</p>
-              <p className="text-2xl font-bold text-slate-600">Patient: {activeAlarm.patientName}</p>
-              <p className="text-3xl font-black text-yellow-700 mt-4">Dosage: {activeAlarm.dosage}</p>
+            <div className="bg-white p-6 rounded-2xl shadow-sm space-y-2">
+              <p className="text-2xl font-bold text-stone-900">{activeAlarm.name}</p>
+              <p className="text-amber-600 font-bold uppercase tracking-wider text-sm">{activeAlarm.dosage}</p>
             </div>
 
-            <div className="flex flex-col gap-4">
-              <AccessibleButton 
-                onClick={handleAlarmAcknowledge} 
-                variant="success"
-                className="py-8 text-4xl shadow-[0_10px_0_0_rgba(21,128,61,1)]"
-              >
-                I TOOK IT
+            <div className="flex flex-col gap-3 pt-4">
+              <AccessibleButton onClick={handleAlarmAcknowledge} variant="primary" className="py-6 text-xl">
+                I've taken it
               </AccessibleButton>
-              
               <button 
                 onClick={() => speakAlarmMessage(activeAlarm)}
-                className="flex items-center justify-center gap-2 text-xl font-black text-slate-400 uppercase hover:text-black transition-colors"
+                className="text-stone-400 font-bold hover:text-stone-600 flex items-center justify-center gap-2 py-2 transition-colors"
               >
-                <Volume2 size={32} /> Hear Instructions Again
+                <Volume2 size={20} /> Read instructions again
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-yellow-400 p-2 flex justify-around items-center z-40 overflow-x-auto gap-2 shadow-[0_-10px_30px_rgba(0,0,0,0.1)]">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md px-2 py-4 flex justify-around items-center z-40 border-t border-stone-100 shadow-[0_-5px_20px_rgba(0,0,0,0.02)]">
         {features.map((f) => (
           <button
             key={f.id}
@@ -214,60 +226,66 @@ const App: React.FC = () => {
               setActiveFeature(f.id);
               setIsMenuOpen(false);
             }}
-            className={`flex flex-col items-center gap-1 min-w-[60px] p-2 rounded-xl transition-all ${
+            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all ${
               activeFeature === f.id 
-                ? 'bg-yellow-400 text-black scale-105 border-2 border-yellow-600 shadow-md' 
-                : 'text-slate-500 hover:bg-yellow-50'
+                ? 'text-amber-600' 
+                : 'text-stone-400 hover:text-stone-600'
             }`}
           >
             {f.icon}
-            <span className="text-[9px] font-black uppercase whitespace-nowrap tracking-tighter">{f.id}</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest">{f.label}</span>
+            {activeFeature === f.id && <div className="w-1 h-1 rounded-full bg-amber-600 mt-0.5"></div>}
           </button>
         ))}
       </nav>
 
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[60] bg-yellow-400 flex flex-col p-6 gap-4 animate-in slide-in-from-right duration-300">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-3xl font-black text-black italic uppercase tracking-tighter">Tools</h2>
-            <button onClick={() => setIsMenuOpen(false)} className="p-3 bg-white border-2 border-black rounded-xl shadow-xl">
-              <X size={32} />
-            </button>
-          </div>
-          {features.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => {
-                setActiveFeature(f.id);
-                setIsMenuOpen(false);
-              }}
-              className={`flex items-center gap-4 p-5 rounded-xl text-xl font-black transition-all border-4 ${
-                activeFeature === f.id ? 'bg-black text-white border-black' : 'bg-white text-black border-transparent shadow-xl'
-              }`}
-            >
-              {f.icon}
-              {f.label}
-            </button>
-          ))}
-          <div className="mt-auto text-center p-4 bg-yellow-300 rounded-3xl border-2 border-yellow-500">
-            <p className="text-sm font-black text-yellow-900 opacity-60 uppercase tracking-widest">Assistme v1.4</p>
+        <div className="fixed inset-0 z-[60] bg-stone-900/10 backdrop-blur-sm animate-in fade-in" onClick={() => setIsMenuOpen(false)}>
+          <div className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-2xl flex flex-col gap-4 animate-in slide-in-from-right duration-300" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-stone-50 flex justify-between items-center">
+              <h2 className="text-xs font-black text-stone-400 uppercase tracking-widest">Navigation</h2>
+              <button onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-stone-50 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="px-3 py-2 space-y-1">
+              {features.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => {
+                    setActiveFeature(f.id);
+                    setIsMenuOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-4 p-4 rounded-xl text-base font-bold transition-all ${
+                    activeFeature === f.id 
+                      ? 'bg-amber-50 text-amber-700' 
+                      : 'bg-white text-stone-600 hover:bg-stone-50'
+                  }`}
+                >
+                  {f.icon}
+                  {f.label}
+                </button>
+              ))}
+              
+              <div className="pt-4 border-t border-stone-50 mt-4">
+                <button
+                  onClick={() => {
+                    toggleFullscreen();
+                    setIsMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-4 p-4 rounded-xl text-base font-bold transition-all bg-white text-stone-600 hover:bg-stone-50"
+                >
+                  {isFullscreen ? <Minimize size={22} /> : <Maximize size={22} />}
+                  {isFullscreen ? 'Exit Full Screen' : 'Go Full Screen'}
+                </button>
+              </div>
+            </div>
+            <div className="mt-auto p-8 border-t border-stone-50">
+               <p className="text-[10px] font-bold text-stone-300 uppercase tracking-widest text-center">v1.5 Minimal</p>
+            </div>
           </div>
         </div>
       )}
-
-      <style>{`
-        @keyframes bounce-slow {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-15px); }
-        }
-        @keyframes wiggle {
-          0%, 100% { transform: rotate(0); }
-          25% { transform: rotate(-10deg); }
-          75% { transform: rotate(10deg); }
-        }
-        .animate-bounce-slow { animation: bounce-slow 4s infinite ease-in-out; }
-        .animate-wiggle { animation: wiggle 0.2s infinite ease-in-out; }
-      `}</style>
     </div>
   );
 };

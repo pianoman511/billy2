@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { GoogleGenAI, Modality } from "@google/genai";
-import { Volume2, FileSearch, RefreshCw } from 'lucide-react';
+import { Volume2, RefreshCw, Type, PlayCircle } from 'lucide-react';
 import CameraModule from '../components/CameraModule';
 import AccessibleButton from '../components/AccessibleButton';
 import { decode, decodeAudioData } from '../services/audio';
@@ -27,7 +26,7 @@ const OCRScanner: React.FC = () => {
       setText(response.text || "No text found.");
     } catch (error) {
       console.error(error);
-      setText("Error scanning text.");
+      setText("Check connection.");
     } finally {
       setLoading(false);
     }
@@ -40,11 +39,11 @@ const OCRScanner: React.FC = () => {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: text }] }],
+        contents: [{ parts: [{ text: text.trim() }] }],
         config: {
           responseModalities: [Modality.AUDIO],
           speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
           },
         },
       });
@@ -71,28 +70,30 @@ const OCRScanner: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-8 p-4">
-      <div className="bg-yellow-200 p-6 rounded-3xl border-4 border-yellow-400 flex items-start gap-4">
-        <FileSearch className="text-yellow-800 shrink-0" size={32} />
-        <p className="text-xl font-semibold">Hold your camera over any text (books, signs, menus) and I'll read it for you.</p>
+    <div className="space-y-8 animate-in fade-in duration-500">
+      <div className="flex items-center gap-3 text-stone-400 px-2">
+        <Type size={18} />
+        <p className="text-sm font-medium">Position text in view to scan and read it aloud.</p>
       </div>
 
       <CameraModule 
         onCapture={scanText} 
         isLoading={loading} 
-        buttonText="Read Document" 
+        buttonText="Read Text" 
       />
 
       {text && (
-        <div className="bg-white p-8 rounded-3xl border-8 border-yellow-400 shadow-2xl flex flex-col gap-6">
-          <h3 className="text-2xl font-black uppercase text-yellow-600">Text Found:</h3>
-          <div className="max-h-64 overflow-y-auto p-4 bg-slate-50 rounded-xl border-2 border-slate-200">
-            <p className="text-3xl font-bold text-slate-800 whitespace-pre-wrap">{text}</p>
+        <div className="bg-white p-6 rounded-2xl shadow-sm space-y-6 animate-in fade-in slide-in-from-bottom-2">
+          <div className="space-y-2">
+            <h3 className="text-[10px] font-black text-stone-300 uppercase tracking-widest">Transcription</h3>
+            <div className="max-h-64 overflow-y-auto bg-stone-50 p-5 rounded-xl">
+              <p className="text-xl font-bold text-stone-800 leading-relaxed whitespace-pre-wrap italic">{text}</p>
+            </div>
           </div>
           
-          <AccessibleButton onClick={speakText} variant="secondary" disabled={isSpeaking}>
-            {isSpeaking ? <RefreshCw className="animate-spin" size={40} /> : <Volume2 size={40} />}
-            {isSpeaking ? 'Reading...' : 'Hear Document'}
+          <AccessibleButton onClick={speakText} variant="secondary" disabled={isSpeaking} className="py-5">
+            {isSpeaking ? <RefreshCw className="animate-spin" size={24} /> : <PlayCircle size={24} />}
+            <span className="text-lg font-bold uppercase tracking-widest">{isSpeaking ? 'Reading...' : 'Speak Text'}</span>
           </AccessibleButton>
         </div>
       )}
