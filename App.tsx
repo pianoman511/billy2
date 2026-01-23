@@ -27,7 +27,6 @@ const App: React.FC = () => {
   const [activeAlarm, setActiveAlarm] = useState<Medication | null>(null);
   const triggeredMedsRef = useRef<Set<string>>(new Set());
   
-  // Audio refs for the beeping alarm
   const alarmAudioCtxRef = useRef<AudioContext | null>(null);
   const alarmIntervalRef = useRef<number | null>(null);
 
@@ -60,7 +59,7 @@ const App: React.FC = () => {
       const gain = ctx.createGain();
       
       osc.type = 'square';
-      osc.frequency.setValueAtTime(880, ctx.currentTime); // A5 note
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
       
       gain.gain.setValueAtTime(0, ctx.currentTime);
       gain.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.05);
@@ -73,13 +72,12 @@ const App: React.FC = () => {
       osc.stop(ctx.currentTime + 0.3);
     };
 
-    // Pulsing beep pattern
     alarmIntervalRef.current = window.setInterval(playBeep, 800);
   };
 
   const speakAlarmMessage = async (med: Medication) => {
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const prompt = `Attention! It is time for ${med.patientName} to take their medicine: ${med.name}. The dosage is ${med.dosage}. Please take it now.`;
       
       const response = await ai.models.generateContent({
@@ -122,8 +120,8 @@ const App: React.FC = () => {
           if (!triggeredMedsRef.current.has(triggerId)) {
             setActiveAlarm(dueMed);
             triggeredMedsRef.current.add(triggerId);
-            playAlarmSound(); // Start the audible beep
-            speakAlarmMessage(dueMed); // Start the spoken alert
+            playAlarmSound();
+            speakAlarmMessage(dueMed);
           }
         }
       }
@@ -153,7 +151,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-yellow-50 flex flex-col">
-      {/* Header */}
       <header className="bg-yellow-400 p-4 flex justify-between items-center border-b-4 border-yellow-500 sticky top-0 z-50 shadow-md">
         <h1 className="text-xl font-black text-black tracking-tighter uppercase italic">Assistme</h1>
         <button 
@@ -165,12 +162,10 @@ const App: React.FC = () => {
         </button>
       </header>
 
-      {/* Main Content Area */}
       <main className="flex-1 max-w-4xl mx-auto w-full p-4 mb-24">
         {renderFeature()}
       </main>
 
-      {/* Global Alarm Overlay */}
       {activeAlarm && (
         <div className="fixed inset-0 z-[100] bg-yellow-400 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in duration-300">
           <div className="bg-white p-12 rounded-[3rem] border-[10px] border-black shadow-[15px_15px_0_0_rgba(0,0,0,1)] w-full max-w-2xl flex flex-col gap-8 animate-bounce-slow">
@@ -211,7 +206,6 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* Navigation - Bottom Bar */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t-4 border-yellow-400 p-2 flex justify-around items-center z-40 overflow-x-auto gap-2 shadow-[0_-10px_30px_rgba(0,0,0,0.1)]">
         {features.map((f) => (
           <button
@@ -232,7 +226,6 @@ const App: React.FC = () => {
         ))}
       </nav>
 
-      {/* Side Menu Overlay */}
       {isMenuOpen && (
         <div className="fixed inset-0 z-[60] bg-yellow-400 flex flex-col p-6 gap-4 animate-in slide-in-from-right duration-300">
           <div className="flex justify-between items-center mb-6">
@@ -272,12 +265,8 @@ const App: React.FC = () => {
           25% { transform: rotate(-10deg); }
           75% { transform: rotate(10deg); }
         }
-        .animate-bounce-slow {
-          animation: bounce-slow 4s infinite ease-in-out;
-        }
-        .animate-wiggle {
-          animation: wiggle 0.2s infinite ease-in-out;
-        }
+        .animate-bounce-slow { animation: bounce-slow 4s infinite ease-in-out; }
+        .animate-wiggle { animation: wiggle 0.2s infinite ease-in-out; }
       `}</style>
     </div>
   );

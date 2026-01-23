@@ -1,45 +1,52 @@
 
 import React, { useState } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { Volume2, Info } from 'lucide-react';
+import { GoogleGenAI, Modality } from "@google/genai";
+import { Volume2, Info, RefreshCw } from 'lucide-react';
 import CameraModule from '../components/CameraModule';
 import AccessibleButton from '../components/AccessibleButton';
+import { decode, decodeAudioData } from '../services/audio';
 
 const ObjectRecognition: React.FC = () => {
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const identifyObjects = async (base64: string) => {
     setLoading(true);
+    setResult(null);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: {
           parts: [
             { inlineData: { mimeType: 'image/jpeg', data: base64 } },
-            { text: "List the primary objects you see in this image. Keep it brief and clear for someone with visual impairment." }
+            { text: "Identify the main objects in this image. Output a very short list of the most prominent items only. Example: 'A blue coffee mug and a pair of glasses'." }
           ]
         },
       });
-      setResult(response.text || "I couldn't identify anything. Please try again.");
+      setResult(response.text || "No objects identified.");
     } catch (error) {
-      console.error(error);
-      setResult("Error identifying objects.");
+      console.error("Gemini Detection Error:", error);
+      setResult("Error identifying objects. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   const speakResult = async () => {
-    if (!result) return;
+    if (!result || isSpeaking) return;
+    
+    setIsSpeaking(true);
+    const textToSpeak = `I see: ${result}`;
+
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: `I see: ${result}` }] }],
+        contents: [{ parts: [{ text: textToSpeak }] }],
         config: {
-          responseModalities: ['AUDIO' as any],
+          responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
           },
@@ -48,24 +55,30 @@ const ObjectRecognition: React.FC = () => {
 
       const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
       if (audioData) {
-        const { decode, decodeAudioData } = await import('../services/audio');
         const context = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
         const decoded = await decodeAudioData(decode(audioData), context, 24000, 1);
         const source = context.createBufferSource();
         source.buffer = decoded;
         source.connect(context.destination);
+        source.onended = () => {
+          setIsSpeaking(false);
+          context.close();
+        };
         source.start();
+      } else {
+        setIsSpeaking(false);
       }
     } catch (e) {
-      console.error("Speech error", e);
+      console.error("Object TTS Error:", e);
+      setIsSpeaking(false);
     }
   };
 
   return (
     <div className="flex flex-col gap-8 p-4">
-      <div className="bg-yellow-200 p-6 rounded-3xl border-4 border-yellow-400 flex items-start gap-4">
-        <Info className="text-yellow-800 shrink-0" size={32} />
-        <p className="text-xl font-semibold">Point your camera at something and I'll tell you what it is.</p>
+      <div className="bg-yellow-200 p-8 rounded-3xl border-4 border-yellow-400 flex items-start gap-4">
+        <Info className="text-yellow-800 shrink-0" size={40} />
+        <p className="text-2xl font-black leading-tight">Point your camera at an object and tap IDENTIFY below.</p>
       </div>
 
       <CameraModule 
@@ -75,13 +88,18 @@ const ObjectRecognition: React.FC = () => {
       />
 
       {result && (
-        <div className="bg-white p-8 rounded-3xl border-8 border-yellow-400 shadow-2xl flex flex-col gap-6 animate-bounce-in">
-          <h3 className="text-3xl font-black uppercase tracking-widest text-yellow-600">I Detected:</h3>
-          <p className="text-4xl font-bold text-slate-800 leading-tight">{result}</p>
+        <div className="bg-white p-10 rounded-[3rem] border-8 border-yellow-400 shadow-2xl flex flex-col gap-8 animate-fade-in">
+          <h3 className="text-2xl font-black uppercase text-yellow-600 tracking-widest">I Detected:</h3>
+          <p className="text-5xl font-black text-slate-800 leading-tight">{result}</p>
           
-          <AccessibleButton onClick={speakResult} variant="secondary">
-            <Volume2 size={40} />
-            Read Out Loud
+          <AccessibleButton 
+            onClick={speakResult} 
+            variant="secondary" 
+            disabled={isSpeaking}
+            className="py-10"
+          >
+            {isSpeaking ? <RefreshCw className="animate-spin" size={48} /> : <Volume2 size={48} />}
+            <span className="text-3xl">{isSpeaking ? 'SPEAKING...' : 'READ OUT LOUD'}</span>
           </AccessibleButton>
         </div>
       )}

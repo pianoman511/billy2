@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { Volume2, FileSearch } from 'lucide-react';
+import { GoogleGenAI, Modality } from "@google/genai";
+import { Volume2, FileSearch, RefreshCw } from 'lucide-react';
 import CameraModule from '../components/CameraModule';
 import AccessibleButton from '../components/AccessibleButton';
 import { decode, decodeAudioData } from '../services/audio';
@@ -9,11 +9,12 @@ import { decode, decodeAudioData } from '../services/audio';
 const OCRScanner: React.FC = () => {
   const [text, setText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   const scanText = async (base64: string) => {
     setLoading(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: {
@@ -33,14 +34,15 @@ const OCRScanner: React.FC = () => {
   };
 
   const speakText = async () => {
-    if (!text) return;
+    if (!text || isSpeaking) return;
+    setIsSpeaking(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
         contents: [{ parts: [{ text: text }] }],
         config: {
-          responseModalities: ['AUDIO' as any],
+          responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
           },
@@ -54,10 +56,17 @@ const OCRScanner: React.FC = () => {
         const source = context.createBufferSource();
         source.buffer = decoded;
         source.connect(context.destination);
+        source.onended = () => {
+          setIsSpeaking(false);
+          context.close();
+        };
         source.start();
+      } else {
+        setIsSpeaking(false);
       }
     } catch (e) {
       console.error("Speech error", e);
+      setIsSpeaking(false);
     }
   };
 
@@ -81,9 +90,9 @@ const OCRScanner: React.FC = () => {
             <p className="text-3xl font-bold text-slate-800 whitespace-pre-wrap">{text}</p>
           </div>
           
-          <AccessibleButton onClick={speakText} variant="secondary">
-            <Volume2 size={40} />
-            Hear Document
+          <AccessibleButton onClick={speakText} variant="secondary" disabled={isSpeaking}>
+            {isSpeaking ? <RefreshCw className="animate-spin" size={40} /> : <Volume2 size={40} />}
+            {isSpeaking ? 'Reading...' : 'Hear Document'}
           </AccessibleButton>
         </div>
       )}

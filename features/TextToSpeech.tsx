@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
-import { GoogleGenAI } from "@google/genai";
-import { Volume2, PlayCircle, Eraser } from 'lucide-react';
+import { GoogleGenAI, Modality } from "@google/genai";
+import { Volume2, PlayCircle, Eraser, RefreshCw } from 'lucide-react';
 import AccessibleButton from '../components/AccessibleButton';
 import { decode, decodeAudioData } from '../services/audio';
 
@@ -10,15 +9,18 @@ const TextToSpeech: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const handleSpeak = async () => {
-    if (!text.trim()) return;
+    if (!text.trim() || loading) return;
     setLoading(true);
+    
+    const textToSpeak = text.trim();
+
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: text }] }],
+        contents: [{ parts: [{ text: textToSpeak }] }],
         config: {
-          responseModalities: ['AUDIO' as any],
+          responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
           },
@@ -32,10 +34,11 @@ const TextToSpeech: React.FC = () => {
         const source = context.createBufferSource();
         source.buffer = decoded;
         source.connect(context.destination);
+        source.onended = () => context.close();
         source.start();
       }
     } catch (e) {
-      console.error("Speech error", e);
+      console.error("TTS Execution Error:", e);
     } finally {
       setLoading(false);
     }
@@ -55,8 +58,8 @@ const TextToSpeech: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <AccessibleButton onClick={handleSpeak} disabled={loading || !text.trim()}>
-          {loading ? <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-black" /> : <PlayCircle size={40} />}
-          Speak Text
+          {loading ? <RefreshCw className="animate-spin" size={40} /> : <PlayCircle size={40} />}
+          {loading ? 'Thinking...' : 'Speak Text'}
         </AccessibleButton>
         <AccessibleButton onClick={() => setText('')} variant="secondary" disabled={!text}>
           <Eraser size={40} />
