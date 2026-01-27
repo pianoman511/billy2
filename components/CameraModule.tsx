@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Camera, RefreshCw, CameraOff, FlipHorizontal } from 'lucide-react';
+import { Camera, RefreshCw, CameraOff, FlipHorizontal, ZoomIn, ZoomOut } from 'lucide-react';
 import AccessibleButton from './AccessibleButton.tsx';
 
 interface CameraModuleProps {
@@ -12,16 +12,19 @@ interface CameraModuleProps {
 const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, buttonText, className = "" }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const trackRef = useRef<MediaStreamTrack | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [isActive, setIsActive] = useState<boolean>(true);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [zoom, setZoom] = useState<number>(1);
+  const [zoomRange, setZoomRange] = useState({ min: 1, max: 1, step: 0.1 });
+  const [canZoom, setCanZoom] = useState(false);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
     async function startCamera() {
       if (!isActive) return;
       try {
-        // Request portrait-oriented dimensions
         stream = await navigator.mediaDevices.getUserMedia({ 
           video: { 
             facingMode,
@@ -29,9 +32,29 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
             height: { ideal: 1280 }
           } 
         });
+        
         if (videoRef.current) videoRef.current.srcObject = stream;
+        
+        const track = stream.getVideoTracks()[0];
+        trackRef.current = track;
+        
+        // Detect zoom capabilities
+        const capabilities = track.getCapabilities() as any;
+        if (capabilities && capabilities.zoom) {
+          setCanZoom(true);
+          setZoomRange({
+            min: capabilities.zoom.min || 1,
+            max: capabilities.zoom.max || 1,
+            step: capabilities.zoom.step || 0.1
+          });
+          setZoom(capabilities.zoom.min || 1);
+        } else {
+          setCanZoom(false);
+        }
+
         setHasPermission(true);
       } catch (err) {
+        console.error("Camera error:", err);
         setHasPermission(false);
       }
     }
@@ -40,6 +63,19 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
       if (stream) stream.getTracks().forEach(track => track.stop());
     };
   }, [isActive, facingMode]);
+
+  const applyZoom = async (newZoom: number) => {
+    if (!trackRef.current || !canZoom) return;
+    try {
+      const clampedZoom = Math.min(Math.max(newZoom, zoomRange.min), zoomRange.max);
+      await trackRef.current.applyConstraints({
+        advanced: [{ zoom: clampedZoom }] as any
+      });
+      setZoom(clampedZoom);
+    } catch (err) {
+      console.error("Failed to apply zoom:", err);
+    }
+  };
 
   const handleCapture = () => {
     if (!videoRef.current || !canvasRef.current || !isActive) return;
@@ -63,7 +99,6 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
 
   return (
     <div className={`flex flex-col gap-4 items-center w-full ${className}`}>
-      {/* Changed aspect-video to aspect-[3/4] for Portrait Mode */}
       <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden bg-stone-900 shadow-lg transition-all duration-300">
         {isActive ? (
           <video 
@@ -87,14 +122,45 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
             </div>
           </div>
         )}
+
+        {/* Floating Zoom Indicator */}
+        {canZoom && isActive && (
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-1 rounded-full text-white text-xs font-black uppercase tracking-widest">
+            Zoom: {zoom.toFixed(1)}x
+          </div>
+        )}
       </div>
 
       <canvas ref={canvasRef} className="hidden" />
 
+      {/* Zoom Controls */}
+      {isActive && canZoom && (
+        <div className="grid grid-cols-2 gap-3 w-full">
+          <AccessibleButton 
+            onClick={() => applyZoom(zoom - (zoomRange.step * 5))} 
+            variant="secondary" 
+            className="py-6 border-2 border-stone-200"
+            disabled={zoom <= zoomRange.min}
+          >
+            <ZoomOut size={32} />
+            <span className="text-base uppercase font-black">Out</span>
+          </AccessibleButton>
+          <AccessibleButton 
+            onClick={() => applyZoom(zoom + (zoomRange.step * 5))} 
+            variant="secondary" 
+            className="py-6 border-2 border-stone-200"
+            disabled={zoom >= zoomRange.max}
+          >
+            <ZoomIn size={32} />
+            <span className="text-base uppercase font-black">In</span>
+          </AccessibleButton>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3 w-full">
         <AccessibleButton onClick={() => setIsActive(!isActive)} variant={isActive ? 'danger' : 'success'} className="py-4">
           {isActive ? <CameraOff size={24} /> : <Camera size={24} />}
-          <span className="text-base uppercase">Off</span>
+          <span className="text-base uppercase">Power</span>
         </AccessibleButton>
         <AccessibleButton onClick={() => setFacingMode(p => p === 'environment' ? 'user' : 'environment')} variant="secondary" className="py-4" disabled={!isActive}>
           <FlipHorizontal size={24} />
@@ -102,9 +168,9 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
         </AccessibleButton>
       </div>
 
-      <AccessibleButton onClick={handleCapture} disabled={isLoading || !isActive} className="w-full py-6 shadow-sm active:translate-y-1">
-        {isLoading ? <RefreshCw className="animate-spin" size={32} /> : <Camera size={32} />}
-        <span className="text-xl">{buttonText}</span>
+      <AccessibleButton onClick={handleCapture} disabled={isLoading || !isActive} className="w-full py-8 shadow-md active:translate-y-1 bg-amber-400 border-b-4 border-amber-600">
+        {isLoading ? <RefreshCw className="animate-spin" size={40} /> : <Camera size={40} />}
+        <span className="text-2xl font-black uppercase">{buttonText}</span>
       </AccessibleButton>
     </div>
   );
