@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState } from 'react';
 import { Camera, RefreshCw, CameraOff, FlipHorizontal, ZoomIn, ZoomOut } from 'lucide-react';
 import AccessibleButton from './AccessibleButton.tsx';
@@ -25,11 +26,12 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
     async function startCamera() {
       if (!isActive) return;
       try {
+        // Request MAX resolution for better OCR accuracy
         stream = await navigator.mediaDevices.getUserMedia({ 
           video: { 
             facingMode,
-            width: { ideal: 720 },
-            height: { ideal: 1280 }
+            width: { ideal: 4096 },
+            height: { ideal: 4096 }
           } 
         });
         
@@ -38,18 +40,21 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
         const track = stream.getVideoTracks()[0];
         trackRef.current = track;
         
-        // Detect zoom capabilities
+        // Detect and initialize zoom capabilities
         const capabilities = track.getCapabilities() as any;
         if (capabilities && capabilities.zoom) {
           setCanZoom(true);
-          setZoomRange({
-            min: capabilities.zoom.min || 1,
-            max: capabilities.zoom.max || 1,
-            step: capabilities.zoom.step || 0.1
-          });
-          setZoom(capabilities.zoom.min || 1);
+          const min = capabilities.zoom.min || 1;
+          const max = capabilities.zoom.max || 1;
+          const step = capabilities.zoom.step || 0.1;
+          
+          setZoomRange({ min, max, step });
+          // Ensure we start at the minimum zoom (NOT zoomed in)
+          setZoom(min);
+          await track.applyConstraints({ advanced: [{ zoom: min }] as any });
         } else {
           setCanZoom(false);
+          setZoom(1);
         }
 
         setHasPermission(true);
@@ -81,25 +86,27 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
     if (!videoRef.current || !canvasRef.current || !isActive) return;
     const context = canvasRef.current.getContext('2d');
     if (!context) return;
+    
+    // Capture at the video's actual resolution
     canvasRef.current.width = videoRef.current.videoWidth;
     canvasRef.current.height = videoRef.current.videoHeight;
     context.drawImage(videoRef.current, 0, 0);
-    const base64 = canvasRef.current.toDataURL('image/jpeg').split(',')[1];
+    const base64 = canvasRef.current.toDataURL('image/jpeg', 0.95).split(',')[1];
     onCapture(base64);
   };
 
   if (hasPermission === false) {
     return (
       <div className="p-8 text-center bg-stone-100 rounded-2xl border border-stone-200">
-        <h2 className="text-xl font-bold text-stone-800 mb-2 uppercase">Camera Disabled</h2>
-        <p className="text-stone-500 font-medium">Please allow camera access in settings.</p>
+        <h2 className="text-xl font-bold text-stone-800 mb-2 uppercase tracking-tight">Camera Disabled</h2>
+        <p className="text-stone-500 font-medium">Enable camera access in settings to use vision tools.</p>
       </div>
     );
   }
 
   return (
     <div className={`flex flex-col gap-4 items-center w-full ${className}`}>
-      <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden bg-stone-900 shadow-lg transition-all duration-300">
+      <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden bg-stone-900 shadow-xl border-4 border-white transition-all duration-300">
         {isActive ? (
           <video 
             ref={videoRef} 
@@ -108,70 +115,88 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
             className="w-full h-full object-cover" 
           />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-stone-500 p-8 text-center bg-stone-100">
-            <CameraOff size={48} className="mb-4 opacity-20" />
-            <p className="text-lg font-bold uppercase tracking-tighter">Camera Off</p>
+          <div className="w-full h-full flex flex-col items-center justify-center text-stone-400 p-8 text-center bg-stone-100">
+            <CameraOff size={48} className="mb-4 opacity-10" />
+            <p className="text-sm font-black uppercase tracking-widest">Camera Inactive</p>
           </div>
         )}
         
         {isLoading && (
-          <div className="absolute inset-0 bg-white/40 backdrop-blur-sm flex items-center justify-center">
-            <div className="flex flex-col items-center gap-2">
-               <RefreshCw className="animate-spin text-amber-500" size={40} />
-               <span className="text-stone-900 text-sm font-black uppercase tracking-widest">Analyzing...</span>
+          <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+               <div className="relative">
+                 <RefreshCw className="animate-spin text-amber-400" size={64} />
+                 <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-4 h-4 bg-amber-400 rounded-full animate-pulse"></div>
+                 </div>
+               </div>
+               <span className="text-white text-lg font-black uppercase tracking-[0.2em] drop-shadow-md">Processing</span>
             </div>
           </div>
         )}
 
-        {/* Floating Zoom Indicator */}
-        {canZoom && isActive && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 backdrop-blur-md px-4 py-1 rounded-full text-white text-xs font-black uppercase tracking-widest">
-            Zoom: {zoom.toFixed(1)}x
+        {/* Status Overlay */}
+        {isActive && (
+          <div className="absolute top-4 right-4 flex flex-col gap-2">
+            <div className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-lg text-white text-[10px] font-black uppercase tracking-widest border border-white/20">
+              HD Ready
+            </div>
+            {canZoom && (
+              <div className="bg-amber-500/80 backdrop-blur-md px-3 py-1 rounded-lg text-stone-900 text-[10px] font-black uppercase tracking-widest shadow-sm">
+                {zoom.toFixed(1)}x
+              </div>
+            )}
           </div>
         )}
       </div>
 
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* Zoom Controls */}
-      {isActive && canZoom && (
+      {/* Control Panel */}
+      <div className="w-full flex flex-col gap-3">
+        {isActive && canZoom && (
+          <div className="grid grid-cols-2 gap-3 w-full">
+            <AccessibleButton 
+              onClick={() => applyZoom(zoom - (zoomRange.step * 8))} 
+              variant="secondary" 
+              className="py-6 border-2 border-stone-200"
+              disabled={zoom <= zoomRange.min}
+            >
+              <ZoomOut size={32} />
+              <span className="text-base uppercase font-black">Zoom Out</span>
+            </AccessibleButton>
+            <AccessibleButton 
+              onClick={() => applyZoom(zoom + (zoomRange.step * 8))} 
+              variant="secondary" 
+              className="py-6 border-2 border-stone-200"
+              disabled={zoom >= zoomRange.max}
+            >
+              <ZoomIn size={32} />
+              <span className="text-base uppercase font-black">Zoom In</span>
+            </AccessibleButton>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 gap-3 w-full">
-          <AccessibleButton 
-            onClick={() => applyZoom(zoom - (zoomRange.step * 5))} 
-            variant="secondary" 
-            className="py-6 border-2 border-stone-200"
-            disabled={zoom <= zoomRange.min}
-          >
-            <ZoomOut size={32} />
-            <span className="text-base uppercase font-black">Out</span>
+          <AccessibleButton onClick={() => setIsActive(!isActive)} variant={isActive ? 'danger' : 'success'} className="py-4">
+            {isActive ? <CameraOff size={24} /> : <Camera size={24} />}
+            <span className="text-sm font-black uppercase tracking-widest">{isActive ? 'Turn Off' : 'Turn On'}</span>
           </AccessibleButton>
-          <AccessibleButton 
-            onClick={() => applyZoom(zoom + (zoomRange.step * 5))} 
-            variant="secondary" 
-            className="py-6 border-2 border-stone-200"
-            disabled={zoom >= zoomRange.max}
-          >
-            <ZoomIn size={32} />
-            <span className="text-base uppercase font-black">In</span>
+          <AccessibleButton onClick={() => setFacingMode(p => p === 'environment' ? 'user' : 'environment')} variant="secondary" className="py-4" disabled={!isActive}>
+            <FlipHorizontal size={24} />
+            <span className="text-sm font-black uppercase tracking-widest">Switch</span>
           </AccessibleButton>
         </div>
-      )}
 
-      <div className="grid grid-cols-2 gap-3 w-full">
-        <AccessibleButton onClick={() => setIsActive(!isActive)} variant={isActive ? 'danger' : 'success'} className="py-4">
-          {isActive ? <CameraOff size={24} /> : <Camera size={24} />}
-          <span className="text-base uppercase">Power</span>
-        </AccessibleButton>
-        <AccessibleButton onClick={() => setFacingMode(p => p === 'environment' ? 'user' : 'environment')} variant="secondary" className="py-4" disabled={!isActive}>
-          <FlipHorizontal size={24} />
-          <span className="text-base uppercase">Flip</span>
+        <AccessibleButton 
+          onClick={handleCapture} 
+          disabled={isLoading || !isActive} 
+          className="w-full py-10 shadow-lg active:translate-y-1 bg-amber-400 border-b-8 border-amber-600 rounded-[2rem] hover:bg-amber-300"
+        >
+          {isLoading ? <RefreshCw className="animate-spin" size={48} /> : <Camera size={48} />}
+          <span className="text-3xl font-black uppercase tracking-tighter">{buttonText}</span>
         </AccessibleButton>
       </div>
-
-      <AccessibleButton onClick={handleCapture} disabled={isLoading || !isActive} className="w-full py-8 shadow-md active:translate-y-1 bg-amber-400 border-b-4 border-amber-600">
-        {isLoading ? <RefreshCw className="animate-spin" size={40} /> : <Camera size={40} />}
-        <span className="text-2xl font-black uppercase">{buttonText}</span>
-      </AccessibleButton>
     </div>
   );
 };
