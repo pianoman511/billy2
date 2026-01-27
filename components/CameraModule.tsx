@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState } from 'react';
-import { Camera, RefreshCw, CameraOff, FlipHorizontal, ZoomIn, ZoomOut } from 'lucide-react';
+import { Camera, CameraOff, FlipHorizontal, ZoomIn, ZoomOut } from 'lucide-react';
 import AccessibleButton from './AccessibleButton.tsx';
 
 interface CameraModuleProps {
@@ -121,29 +121,20 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
           </div>
         )}
         
-        {isLoading && (
-          <div className="absolute inset-0 bg-stone-900/60 backdrop-blur-md flex items-center justify-center">
-            <div className="flex flex-col items-center gap-4">
-               <div className="relative">
-                 <RefreshCw className="animate-spin text-amber-400" size={64} />
-                 <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-4 h-4 bg-amber-400 rounded-full animate-pulse"></div>
-                 </div>
-               </div>
-               <span className="text-white text-lg font-black uppercase tracking-[0.2em] drop-shadow-md">Processing</span>
-            </div>
-          </div>
-        )}
-
         {/* Status Overlay */}
         {isActive && (
           <div className="absolute top-4 right-4 flex flex-col gap-2">
             <div className="bg-black/40 backdrop-blur-md px-3 py-1 rounded-lg text-white text-[10px] font-black uppercase tracking-widest border border-white/20">
-              HD Ready
+              HD Mode
             </div>
             {canZoom && (
               <div className="bg-amber-500/80 backdrop-blur-md px-3 py-1 rounded-lg text-stone-900 text-[10px] font-black uppercase tracking-widest shadow-sm">
                 {zoom.toFixed(1)}x
+              </div>
+            )}
+            {isLoading && (
+               <div className="bg-white px-3 py-1 rounded-lg text-stone-900 text-[10px] font-black uppercase tracking-widest animate-pulse">
+                Analyzing...
               </div>
             )}
           </div>
@@ -191,10 +182,12 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
         <AccessibleButton 
           onClick={handleCapture} 
           disabled={isLoading || !isActive} 
-          className="w-full py-10 shadow-lg active:translate-y-1 bg-amber-400 border-b-8 border-amber-600 rounded-[2rem] hover:bg-amber-300"
+          className={`w-full py-10 shadow-lg active:translate-y-1 rounded-[2rem] transition-colors ${isLoading ? 'bg-stone-300 border-b-8 border-stone-400' : 'bg-amber-400 border-b-8 border-amber-600 hover:bg-amber-300'}`}
         >
-          {isLoading ? <RefreshCw className="animate-spin" size={48} /> : <Camera size={48} />}
-          <span className="text-3xl font-black uppercase tracking-tighter">{buttonText}</span>
+          <Camera size={48} className={isLoading ? 'opacity-30' : ''} />
+          <span className="text-3xl font-black uppercase tracking-tighter">
+            {isLoading ? 'WORKING...' : buttonText}
+          </span>
         </AccessibleButton>
       </div>
     </div>

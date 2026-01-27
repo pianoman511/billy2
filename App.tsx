@@ -175,7 +175,7 @@ const App: React.FC = () => {
           />
           <div className="flex flex-col">
             <h1 className="text-2xl font-black tracking-tighter text-stone-900 leading-none">Assistme</h1>
-            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-[0.2em] mt-1">Accessibility Support</span>
+            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-[0.2em] mt-1">By 12-Einstein</span>
           </div>
         </div>
         <button 
