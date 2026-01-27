@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Eye, 
@@ -10,7 +11,8 @@ import {
   AlarmClock,
   Volume2,
   Maximize,
-  Minimize
+  Minimize,
+  BellRing
 } from 'lucide-react';
 import { GoogleGenAI, Modality } from "@google/genai";
 import { AppFeature, Medication } from './types.ts';
@@ -19,11 +21,21 @@ import SpeechToText from './features/SpeechToText.tsx';
 import TextToSpeech from './features/TextToSpeech.tsx';
 import OCRScanner from './features/OCRScanner.tsx';
 import MedicinePlanner from './features/MedicinePlanner.tsx';
+import SoundAlerts from './features/SoundAlerts.tsx';
 import AccessibleButton from './components/AccessibleButton.tsx';
 import { decode, decodeAudioData } from './services/audio.ts';
 
+const EXTENDED_FEATURES = [
+  { id: AppFeature.OBJECT_RECOGNITION, label: 'Vision', icon: <Eye size={22} /> },
+  { id: AppFeature.SPEECH_TO_TEXT, label: 'Captions', icon: <Mic2 size={22} /> },
+  { id: AppFeature.TEXT_TO_SPEECH, label: 'Voice', icon: <MessageSquare size={22} /> },
+  { id: AppFeature.OCR_SCANNER, label: 'Read', icon: <ScanLine size={22} /> },
+  { id: AppFeature.MEDICINE_PLANNER, label: 'Meds', icon: <Pill size={22} /> },
+  { id: 'alerts' as any, label: 'Alerts', icon: <BellRing size={22} /> },
+];
+
 const App: React.FC = () => {
-  const [activeFeature, setActiveFeature] = useState<AppFeature>(AppFeature.OBJECT_RECOGNITION);
+  const [activeFeature, setActiveFeature] = useState<AppFeature | 'alerts'>(AppFeature.OBJECT_RECOGNITION);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeAlarm, setActiveAlarm] = useState<Medication | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -31,14 +43,6 @@ const App: React.FC = () => {
   
   const alarmAudioCtxRef = useRef<AudioContext | null>(null);
   const alarmIntervalRef = useRef<number | null>(null);
-
-  const features = [
-    { id: AppFeature.OBJECT_RECOGNITION, label: 'Vision', icon: <Eye size={22} /> },
-    { id: AppFeature.SPEECH_TO_TEXT, label: 'Captions', icon: <Mic2 size={22} /> },
-    { id: AppFeature.TEXT_TO_SPEECH, label: 'Voice', icon: <MessageSquare size={22} /> },
-    { id: AppFeature.OCR_SCANNER, label: 'Read', icon: <ScanLine size={22} /> },
-    { id: AppFeature.MEDICINE_PLANNER, label: 'Meds', icon: <Pill size={22} /> },
-  ];
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -156,6 +160,7 @@ const App: React.FC = () => {
       case AppFeature.TEXT_TO_SPEECH: return <TextToSpeech />;
       case AppFeature.OCR_SCANNER: return <OCRScanner />;
       case AppFeature.MEDICINE_PLANNER: return <MedicinePlanner />;
+      case 'alerts': return <SoundAlerts />;
       default: return <ObjectRecognition />;
     }
   };
@@ -163,13 +168,26 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-stone-50 flex flex-col font-roboto">
       <header className="px-6 py-5 flex justify-between items-center bg-white shadow-sm sticky top-0 z-50">
-        <h1 className="text-xl font-black tracking-tight text-stone-900">assistme</h1>
+        <div className="flex items-center gap-4">
+          <img 
+            src="https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/Logo_Sagrada_Familia.svg/200px-Logo_Sagrada_Familia.svg.png" 
+            alt="Assistme Logo" 
+            className="w-14 h-14 object-contain"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "https://www.mdsf.edu.ph/wp-content/uploads/2017/05/imageedit_1_6485528666.png";
+            }}
+          />
+          <div className="flex flex-col">
+            <h1 className="text-2xl font-black tracking-tighter text-stone-900 leading-none">Assistme</h1>
+            <span className="text-[10px] font-bold text-amber-500 uppercase tracking-[0.2em] mt-1">By 12 Einstein</span>
+          </div>
+        </div>
         <button 
           onClick={() => setIsMenuOpen(!isMenuOpen)}
-          className="p-2 rounded-full hover:bg-stone-50 transition-colors"
+          className="p-3 rounded-full hover:bg-stone-50 transition-colors"
           aria-label="Menu"
         >
-          {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          {isMenuOpen ? <X size={28} /> : <Menu size={28} />}
         </button>
       </header>
 
@@ -205,60 +223,66 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md px-2 py-4 flex justify-around items-center z-40 border-t border-stone-100 shadow-[0_-5px_20px_rgba(0,0,0,0.02)]">
-        {features.map((f) => (
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl px-2 py-4 flex justify-around items-center z-40 border-t border-stone-100 shadow-[0_-10px_30px_rgba(0,0,0,0.03)] overflow-x-auto no-scrollbar">
+        {EXTENDED_FEATURES.map((f) => (
           <button
             key={f.id}
             onClick={() => {
-              setActiveFeature(f.id);
+              setActiveFeature(f.id as any);
               setIsMenuOpen(false);
             }}
-            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all ${
-              activeFeature === f.id ? 'text-amber-600' : 'text-stone-400 hover:text-stone-600'
+            className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all min-w-[68px] ${
+              activeFeature === f.id ? 'text-amber-600 scale-110' : 'text-stone-400 hover:text-stone-600'
             }`}
           >
             {f.icon}
-            <span className="text-[10px] font-bold uppercase tracking-widest">{f.label}</span>
-            {activeFeature === f.id && <div className="w-1 h-1 rounded-full bg-amber-600 mt-0.5"></div>}
+            <span className="text-[9px] font-black uppercase tracking-widest">{f.label}</span>
+            {activeFeature === f.id && <div className="w-1.5 h-1.5 rounded-full bg-amber-600 mt-1 shadow-[0_0_8px_rgba(217,119,6,0.5)]"></div>}
           </button>
         ))}
       </nav>
 
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[60] bg-stone-900/10 backdrop-blur-sm animate-in fade-in" onClick={() => setIsMenuOpen(false)}>
-          <div className="absolute right-0 top-0 bottom-0 w-72 bg-white shadow-2xl flex flex-col animate-in slide-in-from-right" onClick={e => e.stopPropagation()}>
-            <div className="p-6 border-b border-stone-50 flex justify-between items-center">
-              <h2 className="text-xs font-black text-stone-400 uppercase tracking-widest">Navigation</h2>
-              <button onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-stone-50 rounded-full"><X size={20} /></button>
+        <div className="fixed inset-0 z-[60] bg-stone-900/20 backdrop-blur-sm animate-in fade-in" onClick={() => setIsMenuOpen(false)}>
+          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white shadow-2xl flex flex-col animate-in slide-in-from-right" onClick={e => e.stopPropagation()}>
+            <div className="p-8 border-b border-stone-50 flex justify-between items-center bg-stone-50/50">
+              <h2 className="text-xs font-black text-stone-400 uppercase tracking-[0.3em]">Navigation</h2>
+              <button onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-white rounded-full transition-colors"><X size={24} /></button>
             </div>
-            <div className="px-3 py-4 space-y-1">
-              {features.map((f) => (
+            <div className="px-4 py-6 space-y-2 flex-1">
+              {EXTENDED_FEATURES.map((f) => (
                 <button
                   key={f.id}
-                  onClick={() => { setActiveFeature(f.id); setIsMenuOpen(false); }}
-                  className={`w-full flex items-center gap-4 p-4 rounded-xl text-base font-bold transition-all ${
-                    activeFeature === f.id ? 'bg-amber-50 text-amber-700' : 'bg-white text-stone-600 hover:bg-stone-50'
+                  onClick={() => { setActiveFeature(f.id as any); setIsMenuOpen(false); }}
+                  className={`w-full flex items-center gap-5 p-5 rounded-2xl text-lg font-black transition-all ${
+                    activeFeature === f.id ? 'bg-amber-100 text-amber-800 shadow-sm' : 'bg-white text-stone-600 hover:bg-stone-50'
                   }`}
                 >
-                  {f.icon} {f.label}
+                  <div className={`${activeFeature === f.id ? 'text-amber-600' : 'text-stone-400'}`}>{f.icon}</div>
+                  {f.label}
                 </button>
               ))}
-              <div className="pt-4 border-t border-stone-50 mt-4">
+              <div className="pt-6 border-t border-stone-50 mt-6">
                 <button
                   onClick={() => { toggleFullscreen(); setIsMenuOpen(false); }}
-                  className="w-full flex items-center gap-4 p-4 rounded-xl text-base font-bold bg-white text-stone-600 hover:bg-stone-50"
+                  className="w-full flex items-center gap-5 p-5 rounded-2xl text-lg font-black bg-white text-stone-500 hover:bg-stone-50"
                 >
-                  {isFullscreen ? <Minimize size={22} /> : <Maximize size={22} />}
-                  {isFullscreen ? 'Exit Full Screen' : 'Go Full Screen'}
+                  {isFullscreen ? <Minimize size={24} /> : <Maximize size={24} />}
+                  {isFullscreen ? 'Normal View' : 'Full Screen'}
                 </button>
               </div>
             </div>
-            <div className="mt-auto p-8 border-t border-stone-50">
-               <p className="text-[10px] font-bold text-stone-300 uppercase tracking-widest text-center">v2.0 Minimal</p>
+            <div className="mt-auto p-10 border-t border-stone-50 bg-stone-50/30">
+               <p className="text-[11px] font-black text-stone-300 uppercase tracking-[0.4em] text-center">Version 2.5</p>
             </div>
           </div>
         </div>
       )}
+      
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      `}</style>
     </div>
   );
 };

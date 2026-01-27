@@ -6,9 +6,10 @@ interface CameraModuleProps {
   onCapture: (base64Image: string) => void;
   isLoading: boolean;
   buttonText: string;
+  className?: string;
 }
 
-const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, buttonText }) => {
+const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, buttonText, className = "" }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -20,7 +21,14 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
     async function startCamera() {
       if (!isActive) return;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
+        // Request portrait-oriented dimensions
+        stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            facingMode,
+            width: { ideal: 720 },
+            height: { ideal: 1280 }
+          } 
+        });
         if (videoRef.current) videoRef.current.srcObject = stream;
         setHasPermission(true);
       } catch (err) {
@@ -46,43 +54,56 @@ const CameraModule: React.FC<CameraModuleProps> = ({ onCapture, isLoading, butto
 
   if (hasPermission === false) {
     return (
-      <div className="p-8 text-center bg-stone-100 rounded-2xl">
-        <h2 className="text-xl font-bold text-stone-800 mb-2">Camera access denied</h2>
-        <p className="text-stone-500">Enable camera permissions to use vision tools.</p>
+      <div className="p-8 text-center bg-stone-100 rounded-2xl border border-stone-200">
+        <h2 className="text-xl font-bold text-stone-800 mb-2 uppercase">Camera Disabled</h2>
+        <p className="text-stone-500 font-medium">Please allow camera access in settings.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-6 items-center w-full">
-      <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-stone-900 shadow-lg">
+    <div className={`flex flex-col gap-4 items-center w-full ${className}`}>
+      {/* Changed aspect-video to aspect-[3/4] for Portrait Mode */}
+      <div className="relative w-full aspect-[3/4] rounded-2xl overflow-hidden bg-stone-900 shadow-lg transition-all duration-300">
         {isActive ? (
-          <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+          <video 
+            ref={videoRef} 
+            autoPlay 
+            playsInline 
+            className="w-full h-full object-cover" 
+          />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-stone-600 p-8 text-center">
-            <CameraOff size={48} className="mb-4 opacity-30" />
-            <p className="text-lg font-bold">Standby</p>
+          <div className="w-full h-full flex flex-col items-center justify-center text-stone-500 p-8 text-center bg-stone-100">
+            <CameraOff size={48} className="mb-4 opacity-20" />
+            <p className="text-lg font-bold uppercase tracking-tighter">Camera Off</p>
           </div>
         )}
+        
         {isLoading && (
-          <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-4 border-amber-400"></div>
+          <div className="absolute inset-0 bg-white/40 backdrop-blur-sm flex items-center justify-center">
+            <div className="flex flex-col items-center gap-2">
+               <RefreshCw className="animate-spin text-amber-500" size={40} />
+               <span className="text-stone-900 text-sm font-black uppercase tracking-widest">Analyzing...</span>
+            </div>
           </div>
         )}
       </div>
+
       <canvas ref={canvasRef} className="hidden" />
+
       <div className="grid grid-cols-2 gap-3 w-full">
-        <AccessibleButton onClick={() => setIsActive(!isActive)} variant={isActive ? 'danger' : 'success'} className="py-3">
-          {isActive ? <CameraOff size={20} /> : <Camera size={20} />}
-          <span className="text-sm font-bold uppercase tracking-wider">{isActive ? 'Off' : 'On'}</span>
+        <AccessibleButton onClick={() => setIsActive(!isActive)} variant={isActive ? 'danger' : 'success'} className="py-4">
+          {isActive ? <CameraOff size={24} /> : <Camera size={24} />}
+          <span className="text-base uppercase">Off</span>
         </AccessibleButton>
-        <AccessibleButton onClick={() => setFacingMode(p => p === 'environment' ? 'user' : 'environment')} variant="secondary" className="py-3" disabled={!isActive}>
-          <FlipHorizontal size={20} />
-          <span className="text-sm font-bold uppercase tracking-wider">Flip</span>
+        <AccessibleButton onClick={() => setFacingMode(p => p === 'environment' ? 'user' : 'environment')} variant="secondary" className="py-4" disabled={!isActive}>
+          <FlipHorizontal size={24} />
+          <span className="text-base uppercase">Flip</span>
         </AccessibleButton>
       </div>
-      <AccessibleButton onClick={handleCapture} disabled={isLoading || !isActive} className="w-full py-6">
-        {isLoading ? <RefreshCw className="animate-spin" size={24} /> : <Camera size={24} />}
+
+      <AccessibleButton onClick={handleCapture} disabled={isLoading || !isActive} className="w-full py-6 shadow-sm active:translate-y-1">
+        {isLoading ? <RefreshCw className="animate-spin" size={32} /> : <Camera size={32} />}
         <span className="text-xl">{buttonText}</span>
       </AccessibleButton>
     </div>

@@ -1,10 +1,9 @@
-
 import React, { useState } from 'react';
 import { GoogleGenAI, Modality } from "@google/genai";
-import { Volume2, Info, RefreshCw } from 'lucide-react';
-import CameraModule from '../components/CameraModule';
-import AccessibleButton from '../components/AccessibleButton';
-import { decode, decodeAudioData } from '../services/audio';
+import { Volume2, Info, RefreshCw, Eye } from 'lucide-react';
+import CameraModule from '../components/CameraModule.tsx';
+import AccessibleButton from '../components/AccessibleButton.tsx';
+import { decode, decodeAudioData } from '../services/audio.ts';
 
 const ObjectRecognition: React.FC = () => {
   const [result, setResult] = useState<string | null>(null);
@@ -75,31 +74,43 @@ const ObjectRecognition: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col gap-8 p-4">
-      <div className="bg-yellow-200 p-8 rounded-3xl border-4 border-yellow-400 flex items-start gap-4">
-        <Info className="text-yellow-800 shrink-0" size={40} />
-        <p className="text-2xl font-black leading-tight">Point your camera at an object and tap IDENTIFY below.</p>
+    <div className="flex flex-col gap-6 animate-in fade-in duration-500">
+      <div className="bg-white p-5 rounded-2xl shadow-sm flex items-center gap-4">
+        <div className="bg-amber-100 p-3 rounded-full text-amber-600">
+           <Eye size={24} />
+        </div>
+        <div>
+          <h2 className="text-xl font-black text-stone-900 uppercase tracking-tight">Vision Tool</h2>
+          <p className="text-sm font-medium text-stone-400">Point the camera at something.</p>
+        </div>
       </div>
 
-      <CameraModule 
-        onCapture={identifyObjects} 
-        isLoading={loading} 
-        buttonText="Identify Objects" 
-      />
+      <div className="w-full">
+        <CameraModule 
+          onCapture={identifyObjects} 
+          isLoading={loading} 
+          buttonText="Identify" 
+        />
+      </div>
 
       {result && (
-        <div className="bg-white p-10 rounded-[3rem] border-8 border-yellow-400 shadow-2xl flex flex-col gap-8 animate-fade-in">
-          <h3 className="text-2xl font-black uppercase text-yellow-600 tracking-widest">I Detected:</h3>
-          <p className="text-5xl font-black text-slate-800 leading-tight">{result}</p>
+        <div className="bg-white p-6 rounded-2xl shadow-sm space-y-4 animate-in slide-in-from-bottom-2">
+          <div className="flex items-center gap-2 text-amber-600">
+            <Info size={20} />
+            <h3 className="text-xs font-black uppercase tracking-widest">Analysis Result</h3>
+          </div>
+          <p className="text-2xl font-bold text-stone-800 leading-tight">
+            {result}
+          </p>
           
           <AccessibleButton 
             onClick={speakResult} 
             variant="secondary" 
             disabled={isSpeaking}
-            className="py-10"
+            className="w-full py-5"
           >
-            {isSpeaking ? <RefreshCw className="animate-spin" size={48} /> : <Volume2 size={48} />}
-            <span className="text-3xl">{isSpeaking ? 'SPEAKING...' : 'READ OUT LOUD'}</span>
+            {isSpeaking ? <RefreshCw className="animate-spin" size={24} /> : <Volume2 size={24} />}
+            <span className="text-lg font-bold uppercase tracking-widest">{isSpeaking ? 'Speaking...' : 'Listen'}</span>
           </AccessibleButton>
         </div>
       )}
