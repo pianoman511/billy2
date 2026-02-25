@@ -1,11 +1,15 @@
+
 import React, { useState } from 'react';
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { Volume2, Info, RefreshCw, Eye } from 'lucide-react';
 import CameraModule from '../components/CameraModule.tsx';
 import AccessibleButton from '../components/AccessibleButton.tsx';
-import { decode, decodeAudioData } from '../services/audio.ts';
 
-const ObjectRecognition: React.FC = () => {
+interface ObjectRecognitionProps {
+  lang?: 'en' | 'tl';
+}
+
+const ObjectRecognition: React.FC<ObjectRecognitionProps> = ({ lang = 'en' }) => {
   const [result, setResult] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -34,43 +38,33 @@ const ObjectRecognition: React.FC = () => {
   };
 
   const speakResult = async () => {
-    if (!result || isSpeaking) return;
+    if (!result) return;
     
     setIsSpeaking(true);
-    const textToSpeak = `I see: ${result}`;
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: textToSpeak }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
-          },
-        },
-      });
-
-      const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (audioData) {
-        const context = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        const decoded = await decodeAudioData(decode(audioData), context, 24000, 1);
-        const source = context.createBufferSource();
-        source.buffer = decoded;
-        source.connect(context.destination);
-        source.onended = () => {
-          setIsSpeaking(false);
-          context.close();
-        };
-        source.start();
-      } else {
-        setIsSpeaking(false);
+    window.speechSynthesis.cancel();
+    
+    let textToSpeak = `I see: ${result}`;
+    
+    if (lang === 'tl') {
+      try {
+        const aiTranslate = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const translationRes = await aiTranslate.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: `Translate the following short description of objects into natural Tagalog: "${result}". Output only the translation.`,
+        });
+        textToSpeak = `Nakikita ko ang: ${translationRes.text || result}`;
+      } catch (err) {
+        console.error("Translation error", err);
       }
-    } catch (e) {
-      console.error("Object TTS Error:", e);
-      setIsSpeaking(false);
     }
+
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = lang === 'tl' ? 'tl-PH' : 'en-US';
+    utterance.rate = 0.95;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    
+    window.speechSynthesis.speak(utterance);
   };
 
   return (

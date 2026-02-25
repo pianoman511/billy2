@@ -11,9 +11,10 @@ import {
   AlarmClock,
   Volume2,
   Maximize,
-  Minimize
+  Minimize,
+  Languages
 } from 'lucide-react';
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { AppFeature, Medication } from './types.ts';
 import ObjectRecognition from './features/ObjectRecognition.tsx';
 import SpeechToText from './features/SpeechToText.tsx';
@@ -21,7 +22,6 @@ import TextToSpeech from './features/TextToSpeech.tsx';
 import OCRScanner from './features/OCRScanner.tsx';
 import MedicinePlanner from './features/MedicinePlanner.tsx';
 import AccessibleButton from './components/AccessibleButton.tsx';
-import { decode, decodeAudioData } from './services/audio.ts';
 
 const CORE_FEATURES = [
   { id: AppFeature.OBJECT_RECOGNITION, label: 'Vision', icon: <Eye size={22} /> },
@@ -36,10 +36,17 @@ const App: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeAlarm, setActiveAlarm] = useState<Medication | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [ttsLang, setTtsLang] = useState<'en' | 'tl'>(() => {
+    return (localStorage.getItem('assistme_lang') as 'en' | 'tl') || 'en';
+  });
   const triggeredMedsRef = useRef<Set<string>>(new Set());
   
   const alarmAudioCtxRef = useRef<AudioContext | null>(null);
   const alarmIntervalRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    localStorage.setItem('assistme_lang', ttsLang);
+  }, [ttsLang]);
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
@@ -66,6 +73,7 @@ const App: React.FC = () => {
       alarmAudioCtxRef.current.close().catch(() => {});
       alarmAudioCtxRef.current = null;
     }
+    window.speechSynthesis.cancel();
   };
 
   const playAlarmSound = () => {
@@ -90,34 +98,16 @@ const App: React.FC = () => {
     alarmIntervalRef.current = window.setInterval(playBeep, 1000);
   };
 
-  const speakAlarmMessage = async (med: Medication) => {
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
-      const prompt = `Reminder for ${med.patientName}. It is time for ${med.name}. Dosage: ${med.dosage}.`;
-      
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: prompt }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
-          },
-        },
-      });
-
-      const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (audioData) {
-        const context = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        const decoded = await decodeAudioData(decode(audioData), context, 24000, 1);
-        const source = context.createBufferSource();
-        source.buffer = decoded;
-        source.connect(context.destination);
-        source.start();
-      }
-    } catch (e) {
-      console.error("Alarm speech error", e);
+  const speakAlarmMessage = (med: Medication) => {
+    window.speechSynthesis.cancel();
+    let text = `Reminder for ${med.patientName}. It is time for ${med.name}. Dosage: ${med.dosage}.`;
+    if (ttsLang === 'tl') {
+      text = `Paalala para kay ${med.patientName}. Oras na para sa ${med.name}. Ang dosis ay ${med.dosage}.`;
     }
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = ttsLang === 'tl' ? 'tl-PH' : 'en-US';
+    utterance.rate = 0.9;
+    window.speechSynthesis.speak(utterance);
   };
 
   useEffect(() => {
@@ -143,7 +133,7 @@ const App: React.FC = () => {
       clearInterval(monitorInterval);
       stopAlarmSound();
     };
-  }, []);
+  }, [ttsLang]);
 
   const handleAlarmAcknowledge = () => {
     stopAlarmSound();
@@ -152,12 +142,12 @@ const App: React.FC = () => {
 
   const renderFeature = () => {
     switch (activeFeature) {
-      case AppFeature.OBJECT_RECOGNITION: return <ObjectRecognition />;
+      case AppFeature.OBJECT_RECOGNITION: return <ObjectRecognition lang={ttsLang} />;
       case AppFeature.SPEECH_TO_TEXT: return <SpeechToText />;
-      case AppFeature.TEXT_TO_SPEECH: return <TextToSpeech />;
-      case AppFeature.OCR_SCANNER: return <OCRScanner />;
+      case AppFeature.TEXT_TO_SPEECH: return <TextToSpeech lang={ttsLang} />;
+      case AppFeature.OCR_SCANNER: return <OCRScanner lang={ttsLang} />;
       case AppFeature.MEDICINE_PLANNER: return <MedicinePlanner />;
-      default: return <ObjectRecognition />;
+      default: return <ObjectRecognition lang={ttsLang} />;
     }
   };
 
@@ -192,8 +182,8 @@ const App: React.FC = () => {
       </main>
 
       {activeAlarm && (
-        <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
-          <div className="w-full max-w-sm flex flex-col gap-6 animate-in zoom-in">
+        <div className="fixed inset-0 z-[100] bg-white/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center">
+          <div className="w-full max-w-sm flex flex-col gap-6">
             <div className="flex justify-center">
               <div className="bg-amber-100 text-amber-600 p-8 rounded-full shadow-inner">
                 <AlarmClock size={64} className="animate-pulse" />
@@ -239,13 +229,25 @@ const App: React.FC = () => {
       </nav>
 
       {isMenuOpen && (
-        <div className="fixed inset-0 z-[60] bg-stone-900/20 backdrop-blur-sm animate-in fade-in" onClick={() => setIsMenuOpen(false)}>
-          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white shadow-2xl flex flex-col animate-in slide-in-from-right" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[60] bg-stone-900/20 backdrop-blur-sm" onClick={() => setIsMenuOpen(false)}>
+          <div className="absolute right-0 top-0 bottom-0 w-80 bg-white shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="p-8 border-b border-stone-50 flex justify-between items-center bg-stone-50/50">
               <h2 className="text-xs font-black text-stone-400 uppercase tracking-[0.3em]">Menu</h2>
               <button onClick={() => setIsMenuOpen(false)} className="p-2 hover:bg-white rounded-full transition-colors"><X size={24} /></button>
             </div>
             <div className="px-4 py-6 space-y-2 flex-1">
+              <button
+                onClick={() => setTtsLang(l => l === 'en' ? 'tl' : 'en')}
+                className="w-full flex items-center gap-5 p-5 rounded-2xl text-lg font-black bg-amber-50 text-stone-800 border-2 border-amber-200 transition-all active:scale-95"
+              >
+                <Languages size={24} className="text-amber-600" />
+                <span>TTS: {ttsLang === 'en' ? 'English' : 'Tagalog'}</span>
+              </button>
+
+              <div className="pt-4 pb-2 border-b border-stone-50 mb-2">
+                <p className="text-[10px] font-black text-stone-300 uppercase tracking-widest ml-2">Tools</p>
+              </div>
+
               {CORE_FEATURES.map((f) => (
                 <button
                   key={f.id}
@@ -258,6 +260,7 @@ const App: React.FC = () => {
                   {f.label}
                 </button>
               ))}
+              
               <div className="pt-6 border-t border-stone-50 mt-6">
                 <button
                   onClick={() => { toggleFullscreen(); setIsMenuOpen(false); }}

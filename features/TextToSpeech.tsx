@@ -1,48 +1,75 @@
+
 import React, { useState } from 'react';
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { Volume2, PlayCircle, Eraser, RefreshCw } from 'lucide-react';
 import AccessibleButton from '../components/AccessibleButton';
-import { decode, decodeAudioData } from '../services/audio';
 
-const TextToSpeech: React.FC = () => {
+interface TextToSpeechProps {
+  lang?: 'en' | 'tl';
+}
+
+const TextToSpeech: React.FC<TextToSpeechProps> = ({ lang = 'en' }) => {
   const [text, setText] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSpeak = async () => {
     if (!text.trim() || loading) return;
     setLoading(true);
+    window.speechSynthesis.cancel();
     
-    const textToSpeak = text.trim();
-
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: textToSpeak }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
-          },
-        },
-      });
-
-      const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (audioData) {
-        const context = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        const decoded = await decodeAudioData(decode(audioData), context, 24000, 1);
-        const source = context.createBufferSource();
-        source.buffer = decoded;
-        source.connect(context.destination);
-        source.onended = () => context.close();
-        source.start();
+    let textToSpeak = text.trim();
+    if (lang === 'tl') {
+      try {
+        const aiTranslate = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const translationRes = await aiTranslate.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: `Translate the following text into natural sounding Tagalog: "${textToSpeak}". Output only the translation.`,
+        });
+        textToSpeak = translationRes.text || textToSpeak;
+      } catch (err) {
+        console.error("Translation error", err);
       }
-    } catch (e) {
-      console.error("TTS Execution Error:", e);
-    } finally {
-      setLoading(false);
     }
+
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = lang === 'tl' ? 'tl-PH' : 'en-US';
+    utterance.rate = 0.95;
+    utterance.onend = () => setLoading(false);
+    utterance.onerror = () => setLoading(false);
+    
+    window.speechSynthesis.speak(utterance);
   };
+
+  const PHRASES = [
+    { category: "Basics", items: [
+      { en: "Hello", tl: "Kamusta" },
+      { en: "Thank you", tl: "Salamat" },
+      { en: "Yes", tl: "Oo" },
+      { en: "No", tl: "Hindi" },
+      { en: "Please", tl: "Pakiusap" },
+      { en: "Excuse me", tl: "Makikiraan po" },
+    ]},
+    { category: "Daily Needs", items: [
+      { en: "I am hungry", tl: "Gutom na ako" },
+      { en: "I am thirsty", tl: "Nauuhaw ako" },
+      { en: "Where is the bathroom?", tl: "Nasaan ang banyo?" },
+      { en: "I need to rest", tl: "Kailangan kong magpahinga" },
+      { en: "Please wait", tl: "Sandali lang po" },
+    ]},
+    { category: "Safety", items: [
+      { en: "I need help", tl: "Kailangan ko ng tulong" },
+      { en: "I am lost", tl: "Nawawala ako" },
+      { en: "Call my family", tl: "Tawagan ang pamilya ko" },
+      { en: "I feel unwell", tl: "Masama ang pakiramdam ko" },
+      { en: "EMERGENCY!", tl: "EMERGENCY!" },
+    ]},
+    { category: "Greetings", items: [
+      { en: "Good morning", tl: "Magandang umaga" },
+      { en: "Good afternoon", tl: "Magandang hapon" },
+      { en: "Good evening", tl: "Magandang gabi" },
+      { en: "Goodbye", tl: "Paalam" },
+    ]}
+  ];
 
   return (
     <div className="flex flex-col gap-8 p-4">
@@ -61,25 +88,33 @@ const TextToSpeech: React.FC = () => {
           {loading ? <RefreshCw className="animate-spin" size={40} /> : <PlayCircle size={40} />}
           {loading ? 'Thinking...' : 'Speak Text'}
         </AccessibleButton>
-        <AccessibleButton onClick={() => setText('')} variant="secondary" disabled={!text}>
+        <AccessibleButton onClick={() => { setText(''); window.speechSynthesis.cancel(); }} variant="secondary" disabled={!text}>
           <Eraser size={40} />
           Clear Everything
         </AccessibleButton>
       </div>
 
       <div className="bg-white p-8 rounded-3xl border-4 border-yellow-200">
-        <h4 className="text-2xl font-bold mb-4 flex items-center gap-2">
+        <h4 className="text-2xl font-bold mb-6 flex items-center gap-2">
           <Volume2 className="text-yellow-600" /> QUICK PHRASES
         </h4>
-        <div className="flex flex-wrap gap-4">
-          {["Hello", "I need help", "Thank you", "Where am I?", "I am hungry", "I am thirsty"].map(phrase => (
-            <button
-              key={phrase}
-              onClick={() => setText(phrase)}
-              className="px-6 py-4 bg-yellow-100 border-2 border-yellow-300 rounded-2xl text-xl font-bold hover:bg-yellow-200 transition-colors"
-            >
-              {phrase}
-            </button>
+        
+        <div className="space-y-8">
+          {PHRASES.map(group => (
+            <div key={group.category}>
+              <h5 className="text-sm font-black text-stone-400 uppercase tracking-[0.2em] mb-3">{group.category}</h5>
+              <div className="flex flex-wrap gap-3">
+                {group.items.map(phraseObj => (
+                  <button
+                    key={phraseObj.en}
+                    onClick={() => setText(lang === 'tl' ? phraseObj.tl : phraseObj.en)}
+                    className="px-6 py-4 bg-yellow-50 border-2 border-yellow-200 rounded-2xl text-xl font-bold hover:bg-yellow-100 transition-colors active:scale-95 text-stone-700"
+                  >
+                    {lang === 'tl' ? phraseObj.tl : phraseObj.en}
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </div>

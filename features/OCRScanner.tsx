@@ -1,11 +1,15 @@
+
 import React, { useState } from 'react';
-import { GoogleGenAI, Modality } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { Volume2, RefreshCw, Type, PlayCircle } from 'lucide-react';
 import CameraModule from '../components/CameraModule';
 import AccessibleButton from '../components/AccessibleButton';
-import { decode, decodeAudioData } from '../services/audio';
 
-const OCRScanner: React.FC = () => {
+interface OCRScannerProps {
+  lang?: 'en' | 'tl';
+}
+
+const OCRScanner: React.FC<OCRScannerProps> = ({ lang = 'en' }) => {
   const [text, setText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -33,40 +37,31 @@ const OCRScanner: React.FC = () => {
   };
 
   const speakText = async () => {
-    if (!text || isSpeaking) return;
+    if (!text) return;
     setIsSpeaking(true);
-    try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash-preview-tts",
-        contents: [{ parts: [{ text: text.trim() }] }],
-        config: {
-          responseModalities: [Modality.AUDIO],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
-          },
-        },
-      });
-
-      const audioData = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-      if (audioData) {
-        const context = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        const decoded = await decodeAudioData(decode(audioData), context, 24000, 1);
-        const source = context.createBufferSource();
-        source.buffer = decoded;
-        source.connect(context.destination);
-        source.onended = () => {
-          setIsSpeaking(false);
-          context.close();
-        };
-        source.start();
-      } else {
-        setIsSpeaking(false);
+    window.speechSynthesis.cancel();
+    
+    let textToSpeak = text.trim();
+    if (lang === 'tl' && textToSpeak !== "No text found.") {
+       try {
+        const aiTranslate = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const translationRes = await aiTranslate.models.generateContent({
+          model: 'gemini-3-flash-preview',
+          contents: `Translate the following text into Tagalog: "${textToSpeak}". Output only the translation.`,
+        });
+        textToSpeak = translationRes.text || textToSpeak;
+      } catch (err) {
+        console.error("Translation error", err);
       }
-    } catch (e) {
-      console.error("Speech error", e);
-      setIsSpeaking(false);
     }
+
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.lang = lang === 'tl' ? 'tl-PH' : 'en-US';
+    utterance.rate = 0.95;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    
+    window.speechSynthesis.speak(utterance);
   };
 
   return (
